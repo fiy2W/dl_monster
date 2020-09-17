@@ -70,7 +70,8 @@ def train(
     batch_size=1,
     lr=0.001,
     val_percent=0.1,
-    per_val_epoch=1
+    per_val_epoch=1,
+    withname=False,
 ):
     dataset = MonsterDataset(img_dir, transform=data_transform, item_list=['id', 'name', 'race', 'attribute'])
     n_val = int(len(dataset) * val_percent)
@@ -90,9 +91,10 @@ def train(
 
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
 
-    tokenizer = BertTokenizer.from_pretrained("bert-base-chinese")
-    bertmodel = BertModel.from_pretrained("bert-base-chinese")
-    bertmodel.to(device=device)
+    if withname:
+        tokenizer = BertTokenizer.from_pretrained("bert-base-chinese")
+        bertmodel = BertModel.from_pretrained("bert-base-chinese")
+        bertmodel.to(device=device)
 
     criterion = nn.CrossEntropyLoss()
     
@@ -106,12 +108,13 @@ def train(
                 race = batch['race'] - 1
                 attribute = batch['attribute'] - 1
 
-                input_ids = []
-                for name_i in name:
-                    input_ids.append(torch.tensor([tokenizer.encode(name_i, add_special_tokens=True, max_length=32, truncation=True, padding='max_length')]))
-                input_ids = torch.cat(input_ids, 0).to(device=device)
-                with torch.no_grad():
-                    feat = bertmodel(input_ids)[1]
+                if withname:
+                    input_ids = []
+                    for name_i in name:
+                        input_ids.append(torch.tensor([tokenizer.encode(name_i, add_special_tokens=True, max_length=32, truncation=True, padding='max_length')]))
+                    input_ids = torch.cat(input_ids, 0).to(device=device)
+                    with torch.no_grad():
+                        feat = bertmodel(input_ids)[1]
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 race = race.to(device=device, dtype=torch.long)
@@ -146,12 +149,13 @@ def train(
                 race = batch['race'] - 1
                 attribute = batch['attribute'] - 1
 
-                input_ids = []
-                for name_i in name:
-                    input_ids.append(torch.tensor([tokenizer.encode(name_i, add_special_tokens=True, max_length=32, truncation=True, padding='max_length')]))
-                input_ids = torch.cat(input_ids, 0).to(device=device)
-                with torch.no_grad():
-                    feat = bertmodel(input_ids)[1]
+                if withname:
+                    input_ids = []
+                    for name_i in name:
+                        input_ids.append(torch.tensor([tokenizer.encode(name_i, add_special_tokens=True, max_length=32, truncation=True, padding='max_length')]))
+                    input_ids = torch.cat(input_ids, 0).to(device=device)
+                    with torch.no_grad():
+                        feat = bertmodel(input_ids)[1]
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 race = race.to(device=device, dtype=torch.long)
@@ -202,6 +206,8 @@ def get_args():
                         help='Batch size', dest='batchsize')
     parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.00001,
                         help='Learning rate', dest='lr')
+    parser.add_argument('-n', '--withname', dest='withname', type=bool, default=False,
+                        help='Use card name for classification')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
     parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
@@ -219,7 +225,7 @@ if __name__ == '__main__':
 
     feat = models.vgg19_bn(pretrained=True).features
     
-    net = classifier(feat)
+    net = classifier(feat, withname=args.withname)
     net.to(device=device)
     
     if args.load:
@@ -234,7 +240,8 @@ if __name__ == '__main__':
             lr=args.lr,
             device=device,
             val_percent=args.val/100,
-            per_val_epoch=1
+            per_val_epoch=1,
+            withname=args.withname,
         )
     except KeyboardInterrupt:
         try:
